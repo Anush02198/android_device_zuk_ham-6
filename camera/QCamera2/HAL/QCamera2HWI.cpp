@@ -458,6 +458,17 @@ int QCamera2HardwareInterface::start_recording(struct camera_device *device)
             hw->stop_preview(device);
             hw->start_preview(device);
         }
+    // Configure preview window for 4K
+    hw->mParameters.getVideoSize(&width, &height);
+    if ((width > 1920) && (height > 1080)) {
+        android::CameraParameters params;
+        params.unflatten(android::String8(hw->get_parameters(device)));
+        params.set("preview-size", (width == 3840) ? "3840x2160" : "4096x2160");
+        params.set("preview-format", "nv12-venus");
+        hw->set_parameters(device, strdup(params.flatten().string()));
+        // Restart preview to propagate changes to preview window
+        hw->stop_preview(device);
+        hw->start_preview(device);
     }
     ALOGE("[KPI Perf] %s: E PROFILE_START_RECORDING", __func__);
     hw->lockAPI();
@@ -789,24 +800,21 @@ char* QCamera2HardwareInterface::get_parameters(struct camera_device *device)
     qcamera_api_result_t apiResult;
     int32_t rc = hw->processAPI(QCAMERA_SM_EVT_GET_PARAMS, NULL);
     if (rc == NO_ERROR) {
-        hw->waitAPIResult(QCAMERA_SM_EVT_GET_PARAMS, &apiResult);
-
-        if (apiResult.params) {
-            android::CameraParameters params;
-            params.unflatten(android::String8(apiResult.params));
-            hw->putParameters(apiResult.params);
-
-            // Hide nv12-venus from userspace to prevent framework crash
-            const char *fmt = params.get("preview-format");
-            if (fmt && !strcmp(fmt, "nv12-venus")) {
+        hw->waitAPIResult(QCAMERA_SM_EVT_GET_PARAMS);
+        // Mask nv12-venus to userspace to prevent framework crash
+        if (hw->mParameters.getRecordingHintValue()) {
+            int width, height;
+            hw->mParameters.getVideoSize(&width, &height);
+            if ((width > 1920) && (height > 1080)) {
+                android::CameraParameters params;
+                params.unflatten(android::String8(hw->m_apiResult.params));
                 params.set("preview-format", "yuv420sp");
+                ret = strdup(params.flatten().string());
             }
-
-            // Set exposure-time-values param for CameraNext slow-shutter
-            params.set("exposure-time-values", "0");
-
-            ret = strdup(params.flatten().string());
         }
+
+        if (ret == NULL)
+            ret = hw->m_apiResult.params;
     }
     hw->unlockAPI();
 
