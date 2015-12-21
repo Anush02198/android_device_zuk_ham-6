@@ -3858,7 +3858,7 @@ int32_t QCameraParameters::initDefaultParameters()
         else
             CameraParameters::setVideoSize(1280, 720);
 
-        //Set preferred Preview size for video
+       //Set preferred Preview size for video
         if (m_pCapability->position == CAM_POSITION_BACK)
             set(KEY_PREFERRED_PREVIEW_SIZE_FOR_VIDEO, "1920x1080");
         else
