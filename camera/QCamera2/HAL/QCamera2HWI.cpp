@@ -599,7 +599,15 @@ void QCamera2HardwareInterface::release_recording_frame(
     ALOGD("%s: E", __func__);
 
     //Close and delete duplicated native handle and FD's
-    QCameraVideoMemory::closeNativeHandle(opaque, hw->mStoreMetaDataInFrame > 0);
+    if ((hw->mVideoMem != NULL)&&(hw->mStoreMetaDataInFrame>0)) {
+        ret = hw->mVideoMem->closeNativeHandle(opaque,TRUE);
+        if (ret != NO_ERROR) {
+            ALOGE("Invalid video metadata");
+            return;
+        }
+    } else {
+        ALOGW("Possible FD leak. Release recording called after stop");
+    }
 
     hw->lockAPI();
     qcamera_api_result_t apiResult;
@@ -1093,7 +1101,8 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(int cameraId)
       mVideoMem(NULL),
       mPreviewFrameSkipValid(0),
       mLastAFScanTime(0),
-      mLastCaptureTime(0)
+      mLastCaptureTime(0),
+      mVideoMem(NULL)
 {
     mCameraDevice.common.tag = HARDWARE_DEVICE_TAG;
     mCameraDevice.common.version = HARDWARE_DEVICE_API_VERSION(1, 0);
@@ -1896,7 +1905,7 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(cam_stream_type_t st
                 bCachedMem = QCAMERA_ION_USE_NOCACHE;
             }
             ALOGD("%s: vidoe buf using cached memory = %d", __func__, bCachedMem);
-            QCameraVideoMemory *videoMemory = new QCameraVideoMemory(mGetMemory, mCallbackCookie, bCachedMem);
+            QCameraVideoMemory *videoMemory = new QCameraVideoMemory(mGetMemory, bCachedMem);
             mem = videoMemory;
             mVideoMem = videoMemory;
         }
@@ -2335,6 +2344,7 @@ int QCamera2HardwareInterface::stopRecording()
         }
     }
 #endif
+    mVideoMem = NULL;
     ALOGD("%s: X", __func__);
     mVideoMem = NULL;
     return rc;

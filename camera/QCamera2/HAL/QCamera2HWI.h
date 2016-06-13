@@ -603,6 +603,7 @@ private:
     cam_frame_idx_range_t mPreviewFrameSkipIdxRange;
     nsecs_t mLastAFScanTime;
     nsecs_t mLastCaptureTime;
+    QCameraVideoMemory *mVideoMem;
 };
 
 }; // namespace qcamera
