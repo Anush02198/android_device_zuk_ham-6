@@ -708,6 +708,7 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
                                                         QCameraStream *stream,
                                                         void *userdata)
 {
+    QCameraVideoMemory *videoMemObj = NULL;
     ALOGD("[KPI Perf] %s : BEGIN", __func__);
     QCameraVideoMemory *videoMemObj = NULL;
     QCamera2HardwareInterface *pme = (QCamera2HardwareInterface *)userdata;

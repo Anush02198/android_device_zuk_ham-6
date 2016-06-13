@@ -28,6 +28,7 @@ LOCAL_SRC_FILES := \
 
 LOCAL_CFLAGS = -Wall -Werror
 
+# Use media extension
 ifeq ($(TARGET_USES_MEDIA_EXTENSIONS), true)
 LOCAL_CFLAGS += -DUSE_MEDIA_EXTENSIONS
 endif
