@@ -1181,7 +1181,7 @@ int QCameraVideoMemory::allocate(int count, int size)
 
     for (int i = 0; i < count; i ++) {
         mMetadata[i] = mGetMemory(-1,
-                sizeof(media_metadata_buffer), 1, this);
+                sizeof(media_metadata_buffer), 1, mCallbackCookie);
         if (!mMetadata[i]) {
             ALOGE("allocation of video metadata failed.");
             for (int j = 0; j <= i-1; j ++)
@@ -1253,7 +1253,7 @@ int QCameraVideoMemory::allocateMore(int count, int size)
 
     for (int i = mBufferCount; i < count + mBufferCount; i ++) {
         mMetadata[i] = mGetMemory(-1,
-                sizeof(media_metadata_buffer), 1, this);
+                sizeof(media_metadata_buffer), 1, mCallbackCookie);
         if (!mMetadata[i]) {
             ALOGE("allocation of video metadata failed.");
             for (int j = mBufferCount; j <= i-1; j ++) {
