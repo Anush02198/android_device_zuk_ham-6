@@ -3858,7 +3858,7 @@ int32_t QCameraParameters::initDefaultParameters()
         else
             CameraParameters::setVideoSize(1280, 720);
 
-       //Set preferred Preview size for video
+        //Set preferred Preview size for video
         if (m_pCapability->position == CAM_POSITION_BACK)
             set(KEY_PREFERRED_PREVIEW_SIZE_FOR_VIDEO, "1920x1080");
         else
@@ -4378,80 +4378,6 @@ int32_t QCameraParameters::initDefaultParameters()
     return rc;
 }
 
-#define CAM0_PIC_TBL_SIZE 21
-static cam_dimension_t new_pic_sizes_cam0[CAM0_PIC_TBL_SIZE] = {
-    {4208, 3120},
-    {4160, 3120},
-    {4160, 2340},
-    {4000, 3000},
-    {4096, 2160},
-    {3200, 2400},
-    {3200, 1800},
-    {2592, 1944},
-    {2048, 1536},
-    {1920, 1080},
-    {1600, 1200},
-    {1280, 960},
-    {1280, 768},
-    {1280, 720},
-    {1024, 768},
-    {800, 600},
-    {800, 480},
-    {720, 480},
-    {640, 480},
-    {352, 288},
-    {320, 240}
-};
-
-#define CAM0_VID_TBL_SIZE 12
-static cam_dimension_t new_vid_sizes_cam0[CAM0_VID_TBL_SIZE] = {
-    {4096, 2160},
-    {3840, 2160},
-    {2560, 1440},
-    {1920, 1080},
-    {1280, 960},
-    {1280, 720},
-    {864, 480},
-    {800, 480},
-    {720, 480},
-    {640, 480},
-    {480, 320},
-    {352, 288},
-    {320, 240}
-};
-
-#define CAM0_PRVW_TBL_SIZE 14
-static cam_dimension_t new_prvw_sizes_cam0[CAM0_PRVW_TBL_SIZE] = {
-    {4096, 2160},
-    {3840, 2160},
-    {2560, 1440},
-    {1920, 1080},
-    {1440, 1080},
-    {1280, 960},
-    {1280, 720},
-    {768, 432},
-    {720, 480},
-    {640, 480},
-    {576, 432},
-    {384, 288},
-    {352, 288},
-    {320, 240}
-};
-
-#define CAM1_VID_TBL_SIZE 10
-static cam_dimension_t new_vid_sizes_cam1[CAM1_VID_TBL_SIZE] = {
-    {2560, 1440},
-    {1920, 1080},
-    {1280, 720},
-    {864, 480},
-    {800, 480},
-    {720, 480},
-    {640, 480},
-    {480, 320},
-    {352, 288},
-    {320, 240}
-};
-
 /*===========================================================================
  * FUNCTION   : init
  *
@@ -4476,52 +4402,6 @@ int32_t QCameraParameters::init(cam_capability_t *capabilities,
     m_pCamOpsTbl = mmOps;
     m_AdjustFPS = adjustFPS;
     m_pTorch = torch;
-
-    // Inject modified video/preview size tables
-    if (m_pCapability->position == CAM_POSITION_BACK) {
-        for (i = 0; i < CAM0_PIC_TBL_SIZE; i++)
-            m_pCapability->picture_sizes_tbl[i] = new_pic_sizes_cam0[i];
-        m_pCapability->picture_sizes_tbl_cnt = CAM0_PIC_TBL_SIZE;
-
-        for (i = 0; i < CAM0_VID_TBL_SIZE; i++)
-            m_pCapability->video_sizes_tbl[i] = new_vid_sizes_cam0[i];
-        m_pCapability->video_sizes_tbl_cnt = CAM0_VID_TBL_SIZE;
-
-        for (i = 0; i < CAM0_VID_TBL_SIZE; i++)
-            m_pCapability->livesnapshot_sizes_tbl[i] = new_vid_sizes_cam0[i];
-        m_pCapability->livesnapshot_sizes_tbl_cnt = CAM0_VID_TBL_SIZE;
-
-        for (i = 0; i < CAM0_PRVW_TBL_SIZE; i++)
-            m_pCapability->preview_sizes_tbl[i] = new_prvw_sizes_cam0[i];
-        m_pCapability->preview_sizes_tbl_cnt = CAM0_PRVW_TBL_SIZE;
-
-        // Add 120FPS and 90FPS HFR mode up to 1080p
-        for (i = CAM_HFR_MODE_OFF; i < CAM_HFR_MODE_150FPS; i++) {
-            int x;
-            m_pCapability->hfr_tbl[i].mode = (cam_hfr_mode_t)i;
-            m_pCapability->hfr_tbl[i].dim = (cam_dimension_t){1920, 1080};
-            m_pCapability->hfr_tbl[i].frame_skip = 0;
-            m_pCapability->hfr_tbl[i].livesnapshot_sizes_tbl_cnt =
-                                            m_pCapability->hfr_tbl[CAM_HFR_MODE_60FPS].livesnapshot_sizes_tbl_cnt;
-            for (x = 0; x < m_pCapability->hfr_tbl[i].livesnapshot_sizes_tbl_cnt; x++)
-                m_pCapability->hfr_tbl[i].livesnapshot_sizes_tbl[x] =
-                                            m_pCapability->hfr_tbl[CAM_HFR_MODE_60FPS].livesnapshot_sizes_tbl[x];
-        }
-        m_pCapability->hfr_tbl_cnt = 4;
-    } else if (m_pCapability->position == CAM_POSITION_FRONT) {
-        for (i = 0; i < CAM1_VID_TBL_SIZE; i++)
-            m_pCapability->video_sizes_tbl[i] = new_vid_sizes_cam1[i];
-        m_pCapability->video_sizes_tbl_cnt = CAM1_VID_TBL_SIZE;
-
-	/* Use video table for preview sizes */
-        for (i = 0; i < CAM1_VID_TBL_SIZE; i++)
-            m_pCapability->preview_sizes_tbl[i] = new_vid_sizes_cam1[i];
-        m_pCapability->preview_sizes_tbl_cnt = CAM1_VID_TBL_SIZE;
-
-        for (i = 0; i < CAM1_VID_TBL_SIZE; i++)
-            m_pCapability->livesnapshot_sizes_tbl[i] = new_vid_sizes_cam1[i];
-        m_pCapability->livesnapshot_sizes_tbl_cnt = CAM1_VID_TBL_SIZE;
-    }
 
     //Allocate Set Param Buffer
     m_pParamHeap = new QCameraHeapMemory(QCAMERA_ION_USE_CACHE);

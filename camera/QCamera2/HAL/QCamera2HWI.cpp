@@ -458,47 +458,6 @@ int QCamera2HardwareInterface::start_recording(struct camera_device *device)
             hw->stop_preview(device);
             hw->start_preview(device);
         }
-    // Configure preview window for 4K
-    hw->mParameters.getVideoSize(&width, &height);
-    if ((width > 1920) && (height > 1080)) {
-        android::CameraParameters params;
-        params.unflatten(android::String8(hw->get_parameters(device)));
-
-        // Set preview size and picture size to video size
-        if (width == 4096 && height == 2160) {
-            params.set("preview-size", "4096x2160");
-            params.set("picture-size", "4096x2160");
-        } else if (width == 3840 && height == 2160) {
-            params.set("preview-size", "3840x2160");
-            params.set("picture-size", "3840x2160");
-        } else if (width == 2560 && height == 1440) {
-            params.set("preview-size", "2560x1440");
-            params.set("picture-size", "2560x1440");
-        } else if (width == 1920 && height == 1080) {
-            params.set("preview-size", "1920x1080");
-            params.set("picture-size", "1920x1080");
-        } else if (width == 1280 && height == 960) {
-            params.set("preview-size", "1280x960");
-            params.set("picture-size", "1280x960");
-        } else if (width == 1280 && height == 720) {
-            params.set("preview-size", "1280x720");
-            params.set("picture-size", "1280x720");
-	}
-
-        const char *hfrStr = params.get("video-hfr");
-        const char *hsrStr = params.get("video-hsr");
-
-        // Use yuv420sp for high framerates
-        if ((hfrStr != NULL && strcmp(hfrStr, "off")) ||
-            (hsrStr != NULL && strcmp(hsrStr, "off")))
-            params.set("preview-format", "yuv420sp");
-        else
-            params.set("preview-format", "nv12-venus");
-
-        hw->set_parameters(device, strdup(params.flatten().string()));
-        // Restart preview to propagate changes to preview window
-        hw->stop_preview(device);
-        hw->start_preview(device);
     }
     ALOGE("[KPI Perf] %s: E PROFILE_START_RECORDING", __func__);
     hw->lockAPI();
@@ -597,6 +556,17 @@ void QCamera2HardwareInterface::release_recording_frame(
         return;
     }
     ALOGD("%s: E", __func__);
+
+    //Close and delete duplicated native handle and FD's
+    if ((hw->mVideoMem != NULL)&&(hw->mStoreMetaDataInFrame>0)) {
+        ret = hw->mVideoMem->closeNativeHandle(opaque,TRUE);
+        if (ret != NO_ERROR) {
+            ALOGE("Invalid video metadata");
+            return;
+        }
+    } else {
+        ALOGW("Possible FD leak. Release recording called after stop");
+    }
 
     hw->lockAPI();
     qcamera_api_result_t apiResult;
@@ -819,21 +789,24 @@ char* QCamera2HardwareInterface::get_parameters(struct camera_device *device)
     qcamera_api_result_t apiResult;
     int32_t rc = hw->processAPI(QCAMERA_SM_EVT_GET_PARAMS, NULL);
     if (rc == NO_ERROR) {
-        hw->waitAPIResult(QCAMERA_SM_EVT_GET_PARAMS);
-        // Mask nv12-venus to userspace to prevent framework crash
-        if (hw->mParameters.getRecordingHintValue()) {
-            int width, height;
-            hw->mParameters.getVideoSize(&width, &height);
-            if ((width > 1920) && (height > 1080)) {
-                android::CameraParameters params;
-                params.unflatten(android::String8(hw->m_apiResult.params));
-                params.set("preview-format", "yuv420sp");
-                ret = strdup(params.flatten().string());
-            }
-        }
+        hw->waitAPIResult(QCAMERA_SM_EVT_GET_PARAMS, &apiResult);
 
-        if (ret == NULL)
-            ret = hw->m_apiResult.params;
+        if (apiResult.params) {
+            android::CameraParameters params;
+            params.unflatten(android::String8(apiResult.params));
+            hw->putParameters(apiResult.params);
+
+            // Hide nv12-venus from userspace to prevent framework crash
+            const char *fmt = params.get("preview-format");
+            if (fmt && !strcmp(fmt, "nv12-venus")) {
+                params.set("preview-format", "yuv420sp");
+            }
+
+            // Set exposure-time-values param for CameraNext slow-shutter
+            params.set("exposure-time-values", "0");
+
+            ret = strdup(params.flatten().string());
+        }
     }
     hw->unlockAPI();
 
@@ -1240,7 +1213,7 @@ int QCamera2HardwareInterface::openCamera()
     //check if video size 4k x 2k support is enabled
     property_get("persist.camera.4k2k.enable", value, "0");
     enable_4k2k = 1; //atoi(value) > 0 ? 1 : 0;
-    ALOGD("%s: enable_4k2k is %d", __func__, enable_4k2k);
+    //ALOGD("%s: enable_4k2k is %d", __func__, enable_4k2k);
     if (!enable_4k2k) {
        //if the 4kx2k size exists in the supported preview size or
        //supported video size remove it
@@ -1894,12 +1867,8 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(cam_stream_type_t st
             }
             ALOGD("%s: vidoe buf using cached memory = %d", __func__, bCachedMem);
             QCameraVideoMemory *videoMemory = new QCameraVideoMemory(mGetMemory, mCallbackCookie, bCachedMem);
-            int usage = 0;
-            cam_format_t fmt;
-            mParameters.getStreamFormat(CAM_STREAM_TYPE_VIDEO,fmt);
-            videoMemory->setVideoInfo(usage, fmt);
-
             mem = videoMemory;
+            mVideoMem = videoMemory;
         }
         break;
     case CAM_STREAM_TYPE_DEFAULT:
@@ -2282,6 +2251,7 @@ int QCamera2HardwareInterface::startRecording()
 {
     int32_t rc = NO_ERROR;
     ALOGD("%s: E", __func__);
+    mVideoMem = NULL;
     if (mParameters.getRecordingHintValue() == false) {
         ALOGE("%s: start recording when hint is false, stop preview first", __func__);
         stopPreview();
@@ -2327,6 +2297,7 @@ int QCamera2HardwareInterface::stopRecording()
     int rc = stopChannel(QCAMERA_CH_TYPE_VIDEO);
     ALOGD("%s: E", __func__);
     m_cbNotifier.flushVideoNotifications();
+
 #ifdef HAS_MULTIMEDIA_HINTS
     if (m_pPowerModule) {
         if (m_pPowerModule->powerHint) {
